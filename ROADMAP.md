@@ -10,16 +10,16 @@
 *To zadania punktowe z ogólnego "Checklistu startowego", za które jako DevOps jesteś w dużej mierze odpowiedzialny.*
 
 - [x] [cite_start]**0-1h:** Skonfiguruj repozytorium GitHub (monorepo), ustaw branch protection na `main`[cite: 160].
-- [ ] [cite_start]**0-1h:** Przygotuj wspólny plik `docker-compose.yml` z 4 placeholderami, aby każdy w zespole mógł podpiąć swój moduł[cite: 166].
-- [ ] [cite_start]**0-1h:** Uruchom GitHub Actions CI z zadaniami dla całego monorepo: lintowanie (`ruff`), sprawdzanie typów (`mypy`), testy (`pytest`) i buildowanie obrazów Docker[cite: 148]. [cite_start]CI musi być "zielone" na pustym kodzie[cite: 167].
-- [ ] **1-2h:** Weź udział w spotkaniu ustalającym kontrakty OpenAPI (tzw. Contract-first development). [cite_start]Dopilnuj, by kontrakt `contracts/gateway.yaml` został zatwierdzony przez P1 (Tech Lead) i P3 (Frontend) [cite: 111, 112, 163-165].
+- [x] [cite_start]**0-1h:** Przygotuj wspólny plik `docker-compose.yml` z 4 placeholderami, aby każdy w zespole mógł podpiąć swój moduł[cite: 166].
+- [x] [cite_start]**0-1h:** Uruchom GitHub Actions CI z zadaniami dla całego monorepo: lintowanie (`ruff`), sprawdzanie typów (`mypy`), testy (`pytest`) i buildowanie obrazów Docker[cite: 148]. [cite_start]CI musi być "zielone" na pustym kodzie[cite: 167].
+- [x] **1-2h:** Weź udział w spotkaniu ustalającym kontrakty OpenAPI (tzw. Contract-first development). [cite_start]Dopilnuj, by kontrakt `contracts/gateway.yaml` został zatwierdzony przez P1 (Tech Lead) i P3 (Frontend) [cite: 111, 112, 163-165].
 
 ---
 
 ## Faza 1: Gateway Skeleton i Deploy (Godziny 2-7)
 
-- [ ] [cite_start]**2-4h:** Stwórz strukturę aplikacji FastAPI (`services/gateway-service/app`) z obsługą CORS[cite: 68, 148].
-- [ ] [cite_start]**2-4h:** Zaimplementuj agregację health-checków: wywołaj `/health` z M1 i M2, złącz wyniki i wystaw na `GET /health`[cite: 67, 71].
+- [x] [cite_start]**2-4h:** Stwórz strukturę aplikacji FastAPI (`services/gateway-service/app`) z obsługą CORS[cite: 68, 148].
+- [x] [cite_start]**2-4h:** Zaimplementuj agregację health-checków: wywołaj `/health` z M1 i M2, złącz wyniki i wystaw na `GET /health`[cite: 67, 71].
 - [ ] **2-4h:** Zaimplementuj proste ścieżki Proxy (przekierowanie 1:1 za pomocą `httpx`):
     - [cite_start]`GET /api/legal-acts` -> proxy do M1 [cite: 71]
     - [cite_start]`GET /api/legal-acts/{id}` -> proxy do M1 [cite: 71]
