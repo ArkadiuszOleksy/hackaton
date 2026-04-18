@@ -19,7 +19,6 @@ RUN pip install --no-cache-dir --upgrade pip \
         alembic \
         pydantic-settings \
         "psycopg[binary]" \
-    && python -c "from pathlib import Path; p = Path('/app/app/config.py'); print('CONFIG_EXISTS=', p.exists()); assert p.exists(), 'Missing /app/app/config.py'" \
-    && python -c "from pathlib import Path; p = Path('/app/alembic/env.py'); print('ALEMBIC_ENV_EXISTS=', p.exists()); assert p.exists(), 'Missing /app/alembic/env.py'"
+        httpx
 
 CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8001"]
