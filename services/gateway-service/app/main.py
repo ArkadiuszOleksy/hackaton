@@ -1,11 +1,38 @@
+import os
+import uuid
+import asyncio
+import httpx
+
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-import httpx
-import asyncio
-import uuid
+
+# --- IMPORTY SLOWAPI (RATE LIMITING) ---
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 app = FastAPI(title="CivicLens Gateway API (M4)", version="1.0.0")
+
+# --- KONFIGURACJA RATE LIMITERA ---
+# Limiter używa adresu IP użytkownika do śledzenia ilości zapytań
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+
+# Niestandardowy handler dla błędu 429 - utrzymuje format Uniform Error Response
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
+    req_id = request.headers.get("X-Request-ID", "unknown")
+    return JSONResponse(
+        status_code=429,
+        content={
+            "error": {
+                "code": "RATE_LIMITED",
+                "message": "Przekroczony limit zapytań (max 5 na minutę). Spróbuj ponownie za chwilę.",
+                "request_id": req_id
+            }
+        }
+    )
 
 app.add_middleware(
     CORSMiddleware,
@@ -16,8 +43,8 @@ app.add_middleware(
 )
 
 # Adresy modułów (domyślnie localhost na portach wyznaczonych w Wordzie)
-M1_URL = "http://localhost:8001"
-M2_URL = "http://localhost:8002"
+M1_URL = os.getenv("M1_URL", "http://localhost:8001")
+M2_URL = os.getenv("M2_URL", "http://localhost:8002")
 
 
 @app.get("/health")
@@ -72,7 +99,7 @@ async def forward_request(method: str, url: str, request: Request, payload: dict
             )
 
 
-# --- PROSTE PROXY DO M1 (Dane) ---
+# --- PROSTE PROXY DO M1 (Dane - bez limitów, bo to tylko czytanie z bazy) ---
 @app.get("/api/legal-acts")
 async def proxy_legal_acts(request: Request):
     return await forward_request("GET", f"{M1_URL}/legal-acts", request)
@@ -83,27 +110,31 @@ async def proxy_legal_acts_id(act_id: str, request: Request):
     return await forward_request("GET", f"{M1_URL}/legal-acts/{act_id}", request)
 
 
-# --- PROSTE PROXY DO M2 (AI) ---
+# --- PROSTE PROXY DO M2 (AI - ZABEZPIECZONE LIMITEREM) ---
 @app.post("/api/qa")
+@limiter.limit("5/minute")
 async def proxy_qa(request: Request):
     payload = await request.json()
     return await forward_request("POST", f"{M2_URL}/qa", request, payload)
 
 
 @app.post("/api/analyze/impact")
+@limiter.limit("5/minute")
 async def proxy_impact(request: Request):
     payload = await request.json()
     return await forward_request("POST", f"{M2_URL}/analyze/impact", request, payload)
 
 
 @app.post("/api/analyze/trends")
+@limiter.limit("5/minute")
 async def proxy_trends(request: Request):
     payload = await request.json()
     return await forward_request("POST", f"{M2_URL}/analyze/trends", request, payload)
 
 
-# --- ZAAWANSOWANY FAN-OUT (Wymaga logiki) ---
+# --- ZAAWANSOWANY FAN-OUT (Wymaga logiki - ZABEZPIECZONE LIMITEREM) ---
 @app.post("/api/analyze/patent-check")
+@limiter.limit("5/minute")
 async def patent_check_fan_out(request: Request):
     payload = await request.json()
     req_id = str(uuid.uuid4())

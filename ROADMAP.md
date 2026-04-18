@@ -29,9 +29,9 @@
 - [x] **2-4h:** Zaimplementuj ścieżki wymagające logiki:
     - [cite_start]`POST /api/analyze/patent-check` -> **Wzorzec Fan-out:** Musisz najpierw pobrać dane z M1, a następnie połączyć je i wysłać do M2.
     - [cite_start]`POST /auth/login` -> Opcjonalna autoryzacja JWT (weryfikacja), reszta endpointów domyślnie otwarta (anonimowa).
-- [ ] [cite_start]**4-7h:** Przygotuj deployment na środowisku stagingowym (Hetzner lub Fly.io)[cite: 148].
-- [ ] [cite_start]**4-7h:** Podepnij darmową domenę i skonfiguruj HTTPS używając Caddy lub Traefik[cite: 148].
-- [ ] [cite_start]**Milestone H+6 (Bramka):** Sprawdź i potwierdź zespołowi, że `docker-compose up` podnosi wszystkie bazy i 4 moduły (każdy na swoim porcie), a Twój zbiorczy `/health` działa[cite: 127].
+- [x [cite_start]**4-7h:** Przygotuj deployment na środowisku stagingowym (Hetzner lub Fly.io)[cite: 148].
+- [x] [cite_start]**4-7h:** Podepnij darmową domenę i skonfiguruj HTTPS używając Caddy lub Traefik[cite: 148].
+- [x] [cite_start]**Milestone H+6 (Bramka):** Sprawdź i potwierdź zespołowi, że `docker-compose up` podnosi wszystkie bazy i 4 moduły (każdy na swoim porcie), a Twój zbiorczy `/health` działa[cite: 127].
 
 ---
 
