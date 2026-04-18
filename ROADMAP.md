@@ -20,13 +20,13 @@
 
 - [x] [cite_start]**2-4h:** Stwórz strukturę aplikacji FastAPI (`services/gateway-service/app`) z obsługą CORS[cite: 68, 148].
 - [x] [cite_start]**2-4h:** Zaimplementuj agregację health-checków: wywołaj `/health` z M1 i M2, złącz wyniki i wystaw na `GET /health`[cite: 67, 71].
-- [ ] **2-4h:** Zaimplementuj proste ścieżki Proxy (przekierowanie 1:1 za pomocą `httpx`):
+- [x] **2-4h:** Zaimplementuj proste ścieżki Proxy (przekierowanie 1:1 za pomocą `httpx`):
     - [cite_start]`GET /api/legal-acts` -> proxy do M1 [cite: 71]
     - [cite_start]`GET /api/legal-acts/{id}` -> proxy do M1 [cite: 71]
     - [cite_start]`POST /api/qa` -> proxy do M2 [cite: 71, 72]
     - [cite_start]`POST /api/analyze/impact` -> proxy do M2 
     - [cite_start]`POST /api/analyze/trends` -> proxy do M2 
-- [ ] **2-4h:** Zaimplementuj ścieżki wymagające logiki:
+- [x] **2-4h:** Zaimplementuj ścieżki wymagające logiki:
     - [cite_start]`POST /api/analyze/patent-check` -> **Wzorzec Fan-out:** Musisz najpierw pobrać dane z M1, a następnie połączyć je i wysłać do M2.
     - [cite_start]`POST /auth/login` -> Opcjonalna autoryzacja JWT (weryfikacja), reszta endpointów domyślnie otwarta (anonimowa).
 - [ ] [cite_start]**4-7h:** Przygotuj deployment na środowisku stagingowym (Hetzner lub Fly.io)[cite: 148].
