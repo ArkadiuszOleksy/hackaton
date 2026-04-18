@@ -1,0 +1,84 @@
+from typing import Any
+
+import httpx
+import structlog
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
+
+from app.config import settings
+
+log = structlog.get_logger()
+
+
+class UpstreamError(Exception):
+    def __init__(self, code: str, message: str = "") -> None:
+        super().__init__(message or code)
+        self.code = code
+
+
+class NotFoundError(UpstreamError):
+    def __init__(self, resource: str = "") -> None:
+        super().__init__("NOT_FOUND", f"Resource not found: {resource}")
+
+
+class DataServiceClient:
+    CIRCUIT_BREAKER_THRESHOLD = 5
+
+    def __init__(self, http_client: httpx.AsyncClient) -> None:
+        self._http = http_client
+        self._base_url = settings.data_service_url.rstrip("/")
+        self._consecutive_failures = 0
+
+    async def search_articles(self, q: str, top_k: int = 8, request_id: str = "") -> list[dict[str, Any]]:
+        data = await self._get("/articles/search", {"q": q, "top_k": top_k}, request_id)
+        return data if isinstance(data, list) else data.get("items", [])
+
+    async def get_legal_act(self, act_id: str, request_id: str = "") -> dict[str, Any]:
+        return await self._get(f"/legal-acts/{act_id}", {}, request_id)  # type: ignore[return-value]
+
+    async def search_patents(self, q: str, top_k: int = 10, request_id: str = "") -> list[dict[str, Any]]:
+        data = await self._get("/patents", {"q": q, "top_k": top_k}, request_id)
+        return data if isinstance(data, list) else data.get("items", [])
+
+    async def get_trends_sources(self, request_id: str = "") -> list[dict[str, Any]]:
+        data = await self._get("/trends/sources", {}, request_id)
+        return data if isinstance(data, list) else data.get("items", [])
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=1, max=8),
+        retry=retry_if_exception_type(httpx.TimeoutException),
+        reraise=True,
+    )
+    async def _get(self, path: str, params: dict[str, Any], request_id: str) -> Any:
+        if self._consecutive_failures >= self.CIRCUIT_BREAKER_THRESHOLD:
+            raise UpstreamError("UPSTREAM_ERROR", "M1 circuit breaker open")
+
+        headers: dict[str, str] = {}
+        if request_id:
+            headers["X-Request-ID"] = request_id
+
+        try:
+            resp = await self._http.get(
+                f"{self._base_url}{path}",
+                params=params,
+                headers=headers,
+                timeout=10,
+            )
+        except httpx.TimeoutException as exc:
+            self._consecutive_failures += 1
+            log.warning("m1.timeout", path=path, failures=self._consecutive_failures)
+            raise UpstreamError("UPSTREAM_TIMEOUT", f"M1 timeout on {path}") from exc
+
+        if resp.status_code == 404:
+            raise NotFoundError(path)
+
+        if resp.status_code >= 500:
+            self._consecutive_failures += 1
+            log.warning("m1.error", path=path, status=resp.status_code, failures=self._consecutive_failures)
+            raise UpstreamError("UPSTREAM_ERROR", f"M1 {resp.status_code} on {path}")
+
+        if resp.status_code >= 400:
+            raise UpstreamError("BAD_REQUEST", f"M1 client error {resp.status_code}")
+
+        self._consecutive_failures = 0
+        return resp.json()

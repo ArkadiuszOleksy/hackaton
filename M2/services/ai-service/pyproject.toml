@@ -1,0 +1,56 @@
+[project]
+name = "ai-service"
+version = "0.1.0"
+description = "CivicLens M2 — LLM/RAG service for legal acts analysis"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.6",
+    "httpx>=0.28",
+    "tenacity>=9.0",
+    "redis[hiredis]>=5.2",
+    "langchain>=0.3",
+    "langchain-community>=0.3",
+    "openai>=1.57",
+    "jinja2>=3.1",
+    "structlog>=24.4",
+    "prometheus-fastapi-instrumentator>=7.0",
+    "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "pytest-cov>=6.0",
+    "pytest-mock>=3.14",
+    "respx>=0.21",
+    "ruff>=0.8",
+    "mypy>=1.13",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+markers = ["integration: requires running services (INTEGRATION=1)"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
