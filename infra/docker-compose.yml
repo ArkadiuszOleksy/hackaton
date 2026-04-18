@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  # M1 - Moduł Danych (P2)
+  data-service:
+    build: ../services/data-service
+    ports:
+      - "8001:8001"
+    environment:
+      - DATABASE_URL=postgresql://user:pass@db:5432/civiclens
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - db
+      - redis
+
+  # M2 - Moduł AI (P1)
+  ai-service:
+    build: ../services/ai-service
+    ports:
+      - "8002:8002"
+    environment:
+      - DATA_SERVICE_URL=http://data-service:8001
+      - REDIS_URL=redis://redis:6379/1
+
+  # M3 - Frontend Web App (P3)
+  web-app:
+    build: ../apps/web
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000/api
+
+  # M4 - Twój Gateway (P4)
+  gateway-service:
+    build: ../services/gateway-service
+    ports:
+      - "8000:8000"
+    environment:
+      - M1_URL=http://data-service:8001
+      - M2_URL=http://ai-service:8002
+
+  # --- WSPÓŁDZIELONA INFRASTRUKTURA ---
+  db:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=pass
+      - POSTGRES_DB=civiclens
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
