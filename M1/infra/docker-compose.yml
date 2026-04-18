@@ -1,0 +1,36 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: civiclens-postgres
+    environment:
+      POSTGRES_DB: civiclens
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d civiclens"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  data-service:
+    build:
+      context: ../services/data-service
+    container_name: civiclens-data-service
+    environment:
+      APP_ENV: development
+      APP_VERSION: 0.1.0
+      APP_PORT: 8001
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@postgres:5432/civiclens
+      DB_ECHO: "false"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8001:8001"
+
+volumes:
+  postgres_data:
