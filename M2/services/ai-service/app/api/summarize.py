@@ -33,7 +33,7 @@ async def summarize_endpoint(body: SummarizeRequest, request: Request) -> JSONRe
         if cached:
             return JSONResponse(content=make_envelope(cached, request_id, cached=True, took_ms=elapsed_ms(start)))
 
-    # Fetch the full legal act text
+    # Fetch the full legal act text (returns mock data when DRY_RUN=true)
     try:
         act = await data_client.get_legal_act(body.act_id, request_id=request_id)
     except NotFoundError:

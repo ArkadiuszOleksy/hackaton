@@ -1,7 +1,19 @@
 from typing import Any
-
 from app.clients.data_service import DataServiceClient
+from app.config import settings
 
+_DRY_RUN_ARTICLES = [
+    {
+        "article_id": "art-1",
+        "article_number": "Art. 1",
+        "content": "Wszyscy obywatele są równi wobec prawa i mają prawo do równego traktowania przez władze publiczne.",
+    },
+    {
+        "article_id": "art-2",
+        "article_number": "Art. 2",
+        "content": "Rzeczpospolita Polska jest demokratycznym państwem prawnym, urzeczywistniającym zasady sprawiedliwości społecznej.",
+    },
+]
 
 async def retrieve_articles(
     client: DataServiceClient,
@@ -10,6 +22,10 @@ async def retrieve_articles(
     act_id: str | None = None,
     request_id: str = "",
 ) -> list[dict[str, Any]]:
+    # Mock data if DRY_RUN is enabled to allow testing AI service without M1
+    if settings.dry_run:
+        return _DRY_RUN_ARTICLES[:top_k]
+
     articles = await client.search_articles(q=query, top_k=top_k, request_id=request_id)
 
     if act_id:

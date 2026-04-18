@@ -6,13 +6,14 @@ class InjectionDetectedError(ValueError):
 
 
 INJECTION_PATTERNS = [
-    r"ignore\s+previous\s+instructions",
+    r"ignore\s+(all\s+)?previous\s+instructions",
     r"system(owa)?\s+rola\s*:",
+    r"system\s*:",
     r"</?(system|context|task|output_schema)>",
     r"\byou\s+are\s+now\b",
     r"\bact\s+as\s+if\b",
     r"forget\s+all\s+previous",
-    r"\bDAN\s+mode\b",
+    r"\bDAN\b",
     r"prompt\s+injection",
     r"jailbreak",
 ]

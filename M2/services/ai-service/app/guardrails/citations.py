@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Any
 
 import structlog
 
+from app.config import settings
 from app.domain.models import Citation
 
 if TYPE_CHECKING:
@@ -34,6 +35,9 @@ async def validate_citations(
 
     for citation in citations:
         if citation.article_id not in source_ids:
+            if settings.dry_run:
+                log.warning("citation.skip_m1_dry_run", article_id=citation.article_id)
+                continue
             # Fallback: try M1 directly
             try:
                 from app.clients.data_service import NotFoundError

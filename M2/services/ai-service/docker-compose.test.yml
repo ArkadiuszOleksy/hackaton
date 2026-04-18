@@ -1,0 +1,18 @@
+services:
+  ai-test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: base
+    volumes:
+      - .:/app
+    working_dir: /app
+    env_file:
+      - .env
+    environment:
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - OPENROUTER_BASE_URL=${OPENROUTER_BASE_URL}
+      - DRY_RUN=false
+      - UV_PROJECT_ENVIRONMENT=/opt/venv
+    command: >
+      sh -c "uv sync --dev && /opt/venv/bin/pytest tests/test_live_llm.py -s"

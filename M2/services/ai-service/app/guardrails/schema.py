@@ -1,4 +1,5 @@
 import json
+import re
 from collections.abc import Awaitable, Callable
 from typing import TypeVar
 
@@ -16,13 +17,21 @@ async def validate_llm_output(
     schema: type[T],
     retry_fn: Callable[[str], Awaitable[str]],
 ) -> T:
+    def _clean_json(s: str) -> str:
+        s = s.strip()
+        if s.startswith("```"):
+            # Remove ```json or ``` at start and ``` at end
+            s = re.sub(r"^```(?:json)?\n?", "", s)
+            s = re.sub(r"\n?```$", "", s)
+        return s.strip()
+
     # Step 1: JSON parse
     try:
-        data = json.loads(raw)
+        data = json.loads(_clean_json(raw))
     except json.JSONDecodeError:
         raw = await retry_fn("Reply with VALID JSON only. Do not include any text outside the JSON object.")
         try:
-            data = json.loads(raw)
+            data = json.loads(_clean_json(raw))
         except json.JSONDecodeError as exc:
             raise SchemaValidationError(f"LLM returned invalid JSON after retry: {raw[:200]}") from exc
 

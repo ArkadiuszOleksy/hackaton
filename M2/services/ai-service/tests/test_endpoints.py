@@ -13,8 +13,14 @@ def _make_app_state(dry_run: bool = True):
     from app.clients.data_service import DataServiceClient
     from app.llm.openrouter import OpenRouterClient
     from app.config import settings
+    import copy
+    
+    # Create a copy of settings to avoid side-effects across tests
+    test_settings = copy.deepcopy(settings)
+    test_settings.dry_run = False
 
     mock_cache = MagicMock(spec=RedisCache)
+    # ... (rest remains same but I need to use test_settings)
     mock_cache.get = AsyncMock(return_value=None)
     mock_cache.set = AsyncMock()
     mock_cache.ping = AsyncMock(return_value=True)
@@ -87,7 +93,7 @@ def _make_app_state(dry_run: bool = True):
     app.state.redis_cache = mock_cache
     app.state.openrouter = mock_openrouter
     app.state.data_client = mock_data_client
-    app.state.settings = settings
+    app.state.settings = test_settings
 
     return mock_cache, mock_data_client, mock_openrouter
 

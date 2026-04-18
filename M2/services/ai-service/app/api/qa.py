@@ -44,13 +44,16 @@ async def qa_endpoint(body: QARequest, request: Request) -> JSONResponse:
     )
 
     # 3. Cache check
-    if not body.no_cache:
-        cached = await cache.get(cache_key)
-        if cached:
-            log.info("qa.cache_hit", request_id=request_id, cache_hit=True)
-            return JSONResponse(
-                content=make_envelope(cached, request_id, cached=True, took_ms=elapsed_ms(start))
-            )
+    if not body.no_cache and not settings.dry_run:
+        try:
+            cached = await cache.get(cache_key)
+            if cached:
+                log.info("qa.cache_hit", request_id=request_id, cache_hit=True)
+                return JSONResponse(
+                    content=make_envelope(cached, request_id, cached=True, took_ms=elapsed_ms(start))
+                )
+        except Exception as e:
+            log.warning("cache.error", error=str(e))
 
     # 4. Retrieve articles from M1
     try:
@@ -108,7 +111,11 @@ async def qa_endpoint(body: QARequest, request: Request) -> JSONResponse:
     data: dict[str, Any] = validated.model_dump()
 
     # 9. Cache store
-    await cache.set(cache_key, data, settings.cache_ttl_seconds)
+    if not settings.dry_run:
+        try:
+            await cache.set(cache_key, data, settings.cache_ttl_seconds)
+        except Exception as e:
+            log.warning("cache.store_error", error=str(e))
 
     log.info(
         "qa.complete",

@@ -9,6 +9,29 @@ from app.config import settings
 
 log = structlog.get_logger()
 
+_DRY_RUN_ARTICLES = [
+    {
+        "article_id": "art-1",
+        "article_number": "Art. 1",
+        "content": "Wszyscy obywatele sa rowni wobec prawa i maja prawo do rownego traktowania przez wladze publiczne.",
+    },
+    {
+        "article_id": "art-2",
+        "article_number": "Art. 2",
+        "content": "Rzeczpospolita Polska jest demokratycznym panstwem prawnym, urzeczywistniajacym zasady sprawiedliwosci spolecznej.",
+    },
+]
+
+_DRY_RUN_ACT: dict[str, Any] = {
+    "act_id": "dry-run",
+    "title": "[DRY_RUN] Akt prawny",
+    "full_text": (
+        "Art. 1. Przepisy ogolne — akt reguluje prawa i obowiazki stron. "
+        "Art. 2. Zakres stosowania — przepisy stosuje sie do wszystkich podmiotow. "
+        "Art. 3. Definicje — uzyte pojecia maja znaczenie zgodne z ustawa."
+    ),
+}
+
 
 class UpstreamError(Exception):
     def __init__(self, code: str, message: str = "") -> None:
@@ -32,17 +55,25 @@ class DataServiceClient:
         self._circuit_open_until: float = 0.0
 
     async def search_articles(self, q: str, top_k: int = 8, request_id: str = "") -> list[dict[str, Any]]:
+        if settings.dry_run:
+            return _DRY_RUN_ARTICLES[:top_k]
         data = await self._get("/articles/search", {"q": q, "top_k": top_k}, request_id)
         return data if isinstance(data, list) else data.get("items", [])
 
     async def get_legal_act(self, act_id: str, request_id: str = "") -> dict[str, Any]:
+        if settings.dry_run:
+            return {**_DRY_RUN_ACT, "act_id": act_id}
         return await self._get(f"/legal-acts/{act_id}", {}, request_id)  # type: ignore[return-value]
 
     async def search_patents(self, q: str, top_k: int = 10, request_id: str = "") -> list[dict[str, Any]]:
+        if settings.dry_run:
+            return []
         data = await self._get("/patents", {"q": q, "top_k": top_k}, request_id)
         return data if isinstance(data, list) else data.get("items", [])
 
     async def get_trends_sources(self, request_id: str = "") -> list[dict[str, Any]]:
+        if settings.dry_run:
+            return []
         data = await self._get("/trends/sources", {}, request_id)
         return data if isinstance(data, list) else data.get("items", [])
 
