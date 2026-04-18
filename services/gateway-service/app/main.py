@@ -1,11 +1,26 @@
-from fastapi import FastAPI, Request, HTTPException
+import os
+from contextlib import asynccontextmanager
+from typing import AsyncIterator
+
+from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import httpx
 import asyncio
 import uuid
 
-app = FastAPI(title="CivicLens Gateway API (M4)", version="1.0.0")
+M1_URL = os.getenv("M1_URL", "http://localhost:8001")
+M2_URL = os.getenv("M2_URL", "http://localhost:8002")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    app.state.http_client = httpx.AsyncClient(timeout=10.0)
+    yield
+    await app.state.http_client.aclose()
+
+
+app = FastAPI(title="CivicLens Gateway API (M4)", version="1.0.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -15,61 +30,49 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Adresy modułów (domyślnie localhost na portach wyznaczonych w Wordzie)
-M1_URL = "http://localhost:8001"
-M2_URL = "http://localhost:8002"
-
 
 @app.get("/health")
-async def aggregated_health_check():
+async def aggregated_health_check(request: Request):
     status_response = {"gateway": "ok", "m1_data": "unknown", "m2_ai": "unknown"}
-    async with httpx.AsyncClient(timeout=2.0) as client:
-        try:
-            r1 = await client.get(f"{M1_URL}/health")
-            status_response["m1_data"] = "ok" if r1.status_code == 200 else "error"
-        except httpx.RequestError:
-            status_response["m1_data"] = "down"
-
-        try:
-            r2 = await client.get(f"{M2_URL}/health")
-            status_response["m2_ai"] = "ok" if r2.status_code == 200 else "error"
-        except httpx.RequestError:
-            status_response["m2_ai"] = "down"
-
+    client = request.app.state.http_client
+    results = await asyncio.gather(
+        client.get(f"{M1_URL}/health", timeout=2.0),
+        client.get(f"{M2_URL}/health", timeout=2.0),
+        return_exceptions=True,
+    )
+    r1, r2 = results
+    status_response["m1_data"] = "ok" if not isinstance(r1, Exception) and r1.status_code == 200 else "down"
+    status_response["m2_ai"] = "ok" if not isinstance(r2, Exception) and r2.status_code == 200 else "down"
     return status_response
 
 
 async def forward_request(method: str, url: str, request: Request, payload: dict = None):
     """Wspólna funkcja proxy obsługująca X-Request-ID i Uniform Error Response."""
-    # 1. Tworzymy nowe, lub pobieramy istniejące X-Request-ID (Correlation ID)
     req_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
     headers = {"X-Request-ID": req_id}
+    client = request.app.state.http_client
 
-    async with httpx.AsyncClient(timeout=10.0) as client:
-        try:
-            if method == "GET":
-                response = await client.get(url, headers=headers, params=request.query_params)
-            elif method == "POST":
-                response = await client.post(url, headers=headers, json=payload)
+    try:
+        if method == "GET":
+            response = await client.get(url, headers=headers, params=request.query_params)
+        elif method == "POST":
+            response = await client.post(url, headers=headers, json=payload)
 
-            # Jeśli moduł wewnętrzny rzuci błędem
-            if response.status_code >= 500:
-                return JSONResponse(
-                    status_code=502,
-                    content={"error": {"code": "UPSTREAM_ERROR", "message": "Moduł wewnętrzny zwrócił błąd",
-                                       "request_id": req_id}}
-                )
-
-            # Poprawna odpowiedź
-            return JSONResponse(status_code=response.status_code, content=response.json())
-
-        except httpx.RequestError:
-            # Łapiemy sytuację, gdy np. M1 w ogóle nie jest włączone
+        if response.status_code >= 500:
             return JSONResponse(
                 status_code=502,
-                content={
-                    "error": {"code": "UPSTREAM_ERROR", "message": f"Brak komunikacji z {url}", "request_id": req_id}}
+                content={"error": {"code": "UPSTREAM_ERROR", "message": "Moduł wewnętrzny zwrócił błąd",
+                                   "request_id": req_id}}
             )
+
+        return JSONResponse(status_code=response.status_code, content=response.json())
+
+    except httpx.RequestError:
+        return JSONResponse(
+            status_code=502,
+            content={
+                "error": {"code": "UPSTREAM_ERROR", "message": f"Brak komunikacji z {url}", "request_id": req_id}}
+        )
 
 
 # --- PROSTE PROXY DO M1 (Dane) ---
@@ -107,29 +110,25 @@ async def proxy_trends(request: Request):
 async def patent_check_fan_out(request: Request):
     payload = await request.json()
     req_id = str(uuid.uuid4())
+    client = request.app.state.http_client
 
-    async with httpx.AsyncClient(timeout=15.0) as client:
-        try:
-            # 1. Pobieramy z Frontendu o co pyta użytkownik (np. idea = "panele słoneczne")
-            query = payload.get("idea", "")
+    try:
+        query = payload.get("idea", "")
 
-            # 2. Pytamy moduł M1 (dane) o podobne patenty z bazy UPRP
-            m1_resp = await client.get(f"{M1_URL}/patents?q={query}", headers={"X-Request-ID": req_id})
-            patenty_z_m1 = m1_resp.json() if m1_resp.status_code == 200 else {}
+        m1_resp = await client.get(f"{M1_URL}/patents?q={query}", headers={"X-Request-ID": req_id})
+        patenty_z_m1 = m1_resp.json() if m1_resp.status_code == 200 else {}
 
-            # 3. Dodajemy te dane do paczki od użytkownika
-            payload["m1_context"] = patenty_z_m1
+        payload["m1_context"] = patenty_z_m1
 
-            # 4. Wysyłamy wzbogaconą paczkę do modelu LLM w M2, żeby to ocenił
-            m2_resp = await client.post(f"{M2_URL}/analyze/patent-check", json=payload,
-                                        headers={"X-Request-ID": req_id})
+        m2_resp = await client.post(f"{M2_URL}/analyze/patent-check", json=payload,
+                                    headers={"X-Request-ID": req_id})
 
-            if m2_resp.status_code >= 500:
-                return JSONResponse(status_code=502, content={
-                    "error": {"code": "UPSTREAM_ERROR", "message": "Moduł AI zawiódł", "request_id": req_id}})
-            return JSONResponse(status_code=m2_resp.status_code, content=m2_resp.json())
-
-        except httpx.RequestError:
+        if m2_resp.status_code >= 500:
             return JSONResponse(status_code=502, content={
-                "error": {"code": "UPSTREAM_ERROR", "message": "Błąd komunikacji podczas łączenia M1 i M2",
-                          "request_id": req_id}})
+                "error": {"code": "UPSTREAM_ERROR", "message": "Moduł AI zawiódł", "request_id": req_id}})
+        return JSONResponse(status_code=m2_resp.status_code, content=m2_resp.json())
+
+    except httpx.RequestError:
+        return JSONResponse(status_code=502, content={
+            "error": {"code": "UPSTREAM_ERROR", "message": "Błąd komunikacji podczas łączenia M1 i M2",
+                      "request_id": req_id}})

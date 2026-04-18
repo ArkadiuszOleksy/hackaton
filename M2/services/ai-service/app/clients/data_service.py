@@ -1,3 +1,4 @@
+import time
 from typing import Any
 
 import httpx
@@ -22,11 +23,13 @@ class NotFoundError(UpstreamError):
 
 class DataServiceClient:
     CIRCUIT_BREAKER_THRESHOLD = 5
+    CIRCUIT_BREAKER_COOLDOWN = 60.0
 
     def __init__(self, http_client: httpx.AsyncClient) -> None:
         self._http = http_client
         self._base_url = settings.data_service_url.rstrip("/")
         self._consecutive_failures = 0
+        self._circuit_open_until: float = 0.0
 
     async def search_articles(self, q: str, top_k: int = 8, request_id: str = "") -> list[dict[str, Any]]:
         data = await self._get("/articles/search", {"q": q, "top_k": top_k}, request_id)
@@ -51,7 +54,9 @@ class DataServiceClient:
     )
     async def _get(self, path: str, params: dict[str, Any], request_id: str) -> Any:
         if self._consecutive_failures >= self.CIRCUIT_BREAKER_THRESHOLD:
-            raise UpstreamError("UPSTREAM_ERROR", "M1 circuit breaker open")
+            if time.monotonic() < self._circuit_open_until:
+                raise UpstreamError("UPSTREAM_ERROR", "M1 circuit breaker open")
+            log.info("m1.circuit_breaker.half_open", path=path)
 
         headers: dict[str, str] = {}
         if request_id:
@@ -66,6 +71,7 @@ class DataServiceClient:
             )
         except httpx.TimeoutException as exc:
             self._consecutive_failures += 1
+            self._circuit_open_until = time.monotonic() + self.CIRCUIT_BREAKER_COOLDOWN
             log.warning("m1.timeout", path=path, failures=self._consecutive_failures)
             raise UpstreamError("UPSTREAM_TIMEOUT", f"M1 timeout on {path}") from exc
 
@@ -74,6 +80,7 @@ class DataServiceClient:
 
         if resp.status_code >= 500:
             self._consecutive_failures += 1
+            self._circuit_open_until = time.monotonic() + self.CIRCUIT_BREAKER_COOLDOWN
             log.warning("m1.error", path=path, status=resp.status_code, failures=self._consecutive_failures)
             raise UpstreamError("UPSTREAM_ERROR", f"M1 {resp.status_code} on {path}")
 
@@ -81,4 +88,5 @@ class DataServiceClient:
             raise UpstreamError("BAD_REQUEST", f"M1 client error {resp.status_code}")
 
         self._consecutive_failures = 0
+        self._circuit_open_until = 0.0
         return resp.json()
